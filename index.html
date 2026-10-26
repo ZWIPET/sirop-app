@@ -75,12 +75,23 @@ async function connect() {
       buffer += decoder.decode(e.target.value, { stream: true });
       let i;
       while ((i = buffer.indexOf("\n")) >= 0) {
-        log(buffer.slice(0, i), "bot");
+        const line = buffer.slice(0, i);
+        if (line === "Code refuse") localStorage.removeItem("sirop_pin");
+        log(line, "bot");
         buffer = buffer.slice(i + 1);
       }
     });
     setStatus(true); log("Connecté à " + device.name, "sys");
+    let pin = localStorage.getItem("sirop_pin");
+    if (!pin) { pin = prompt("Code SIROP :") || ""; }
+    await sendRaw("auth " + pin);
+    if (pin) localStorage.setItem("sirop_pin", pin);
   } catch (err) { log("Erreur : " + err.message, "sys"); }
+}
+
+async function sendRaw(cmd) {
+  const data = new TextEncoder().encode(cmd + "\n");
+  for (let i = 0; i < data.length; i += 20) await rxChar.writeValue(data.slice(i, i + 20));
 }
 
 async function send(cmd) {
@@ -88,8 +99,7 @@ async function send(cmd) {
   if (!cmd) return;
   if (!rxChar || !device.gatt.connected) { log("Pas connecté à SIROP", "sys"); return; }
   log("> " + cmd, "me");
-  const data = new TextEncoder().encode(cmd + "\n");
-  for (let i = 0; i < data.length; i += 20) await rxChar.writeValue(data.slice(i, i + 20));
+  await sendRaw(cmd);
 }
 
 // Commandes rapides
