@@ -47,6 +47,7 @@ const TX  = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"; // notifications de SIROP
 const $ = id => document.getElementById(id);
 const logEl = $("log"), statusEl = $("status");
 let device, rxChar, buffer = "";
+const decoder = new TextDecoder(); // en continu : les accents peuvent etre coupes entre deux paquets BLE
 
 function log(text, cls) {
   const d = document.createElement("div");
@@ -63,7 +64,7 @@ async function connect() {
   if (device && device.gatt.connected) { device.gatt.disconnect(); return; }
   if (!navigator.bluetooth) { log("Web Bluetooth indisponible (utilise Chrome sur Android, en HTTPS).", "sys"); return; }
   try {
-    device = await navigator.bluetooth.requestDevice({ filters: [{ services: [NUS] }] });
+    device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: [NUS] });
     device.addEventListener("gattserverdisconnected", () => { setStatus(false); log("Déconnecté", "sys"); });
     const server = await device.gatt.connect();
     const svc = await server.getPrimaryService(NUS);
@@ -71,7 +72,7 @@ async function connect() {
     const tx = await svc.getCharacteristic(TX);
     await tx.startNotifications();
     tx.addEventListener("characteristicvaluechanged", e => {
-      buffer += new TextDecoder().decode(e.target.value);
+      buffer += decoder.decode(e.target.value, { stream: true });
       let i;
       while ((i = buffer.indexOf("\n")) >= 0) {
         log(buffer.slice(0, i), "bot");
@@ -92,7 +93,7 @@ async function send(cmd) {
 }
 
 // Commandes rapides
-["ping", "led on", "led off", "net", "ip", "help"].forEach(c => {
+["led on", "led off", "météo", "net", "help"].forEach(c => {
   const b = document.createElement("button");
   b.textContent = c; b.onclick = () => send(c);
   $("quick").appendChild(b);
